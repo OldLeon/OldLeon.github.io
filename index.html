@@ -1,11 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scene 1</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        svg {
+            border: 2px solid #ccc;
+        }
+        .bar {
+            fill: steelblue;
+        }
+        .bar-hover {
+            fill: orange;
+        }
+        .axis-label {
+            font-size: 18px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 5px;
+            pointer-events: none;
+        }
+        .button-container {
+            margin-top: -10px;
+        }
+        .button-container button {
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #28a745;  
+            border: none;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button-container button:hover {
+            background-color: #218838; 
+        }
+        .button-container button.active {
+            background-color: #083412; 
+        }
+        .annotation {
+            font-size: 14px;
+            position: absolute;
+            top: 100px;
+            right: 10px;
+            width: 200px;
+            text-align: left;
+            padding: 10px;
+        }
+        .input-container {
+            margin: 20px;
+            position: absolute;
+            top: 350px; 
+            right: 6px; 
+            width: 220px; 
+        }
+        .input-container label {
+            font-size: 16px;
+        }
+        .input-container input {
+            width: 80px;
+            margin: 0 5px;
+        }
+        .input-container button {
+            margin-left: 5px;
+            padding: 5px 10px;
+            background-color: #28a745;  
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .input-container button:hover {
+            background-color: #218838; 
+        }
+        .input-container button.active {
+            background-color: #155724; 
+        }
+    </style>
+</head>
 <body>
+    <div>
+        <h1>Brand Comparison: Average Highway MPG</h1>
+        <div class="button-container">
+            <button onclick="navigateTo('index.html', this)">Scene 1</button>
+            <button onclick="navigateTo('scene2.html', this)">Scene 2</button>
+            <button onclick="navigateTo('scene3.html', this)">Scene 3</button>
+        </div>
+        <svg width="800" height="500"></svg>
+        <div class="annotation">
+            <p>This chart shows the average highway MPG for different car brands.</p>
+            <p>Note that Tesla is an electric vehicle manufacturer and does not use gasoline, so its MPG is exceptionally high compared to traditional brands.</p>
+            <p>Use the input boxes to filter the results by MPG range for a more focused comparison.</p>
+        </div>              
+        <div class="input-container">
+            <label for="minMPG">Enter the MPG Range:</label>
+            <input id="minMPG" type="number" min="0" placeholder="Min" />
+            <input id="maxMPG" type="number" min="0" placeholder="Max" />
+            <button onclick="updateChart()">GO !!! </button>
+        </div>
+    </div>
+    <script>
+        // Set margins and dimensions for the chart
+        const margin = {top: 20, right: 30, bottom: 80, left: 60},
+              width = 800 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom;
 
-<h1>My First Heading</h1>
+        // Create SVG container
+        const svg = d3.select("svg")
+                      .append("g")
+                      .attr("transform", `translate(${margin.left},${margin.top})`);
 
-<p>My first paragraph.</p>
+        // Create tooltip
+        const tooltip = d3.select("body").append("div")
+                          .attr("class", "tooltip")
+                          .style("opacity", 0);
 
+        let chartData = [];
+
+        // Create a function to update chart based on users' input values
+        function updateChart() {
+            const minMPG = +document.getElementById('minMPG').value || 0;
+            const maxMPG = +document.getElementById('maxMPG').value || Infinity;
+
+            // Clear existing chart
+            svg.selectAll("*").remove();
+
+            // Load and filter data
+            d3.csv("cars2017.csv").then(data => {
+                // Group data by Make and calculate average Highway MPG
+                const brandData = d3.rollup(data,
+                    v => d3.mean(v, d => +d.AverageHighwayMPG),
+                    d => d.Make);
+
+                chartData = Array.from(brandData, ([Make, AverageHighwayMPG]) => ({ Make, AverageHighwayMPG }));
+
+                // Filter data based on input values
+                chartData = chartData.filter(d => d.AverageHighwayMPG >= minMPG && d.AverageHighwayMPG <= maxMPG);
+
+                // Sort data by MPG in ascending order
+                chartData.sort((a, b) => a.AverageHighwayMPG - b.AverageHighwayMPG);
+
+                // Define scales
+                const x = d3.scaleBand()
+                             .domain(chartData.map(d => d.Make))
+                             .range([0, width])
+                             .padding(0.2);
+
+                const y = d3.scaleLinear()
+                            .domain([0, d3.max(chartData, d => d.AverageHighwayMPG)])
+                            .nice()
+                            .range([height, 0]);
+
+                // Draw axes
+                svg.append("g")
+                   .attr("transform", `translate(0,${height})`)
+                   .call(d3.axisBottom(x))
+                   .selectAll("text")
+                   .attr("transform", "rotate(45)")
+                   .style("text-anchor", "start");
+
+                svg.append("g")
+                   .call(d3.axisLeft(y));
+
+                // Add Y axis label
+                svg.append("text")
+                   .attr("class", "axis-label")
+                   .attr("transform", "rotate(-90)")
+                   .attr("y", -margin.left + 10)
+                   .attr("x", -height / 2)
+                   .attr("dy", "1em")
+                   .style("text-anchor", "middle")
+                   .text("Average Highway MPG");
+
+                // Draw bars
+                svg.selectAll(".bar")
+                   .data(chartData)
+                   .enter().append("rect")
+                   .attr("class", "bar")
+                   .attr("x", d => x(d.Make))
+                   .attr("y", d => y(d.AverageHighwayMPG))
+                   .attr("width", x.bandwidth())
+                   .attr("height", d => height - y(d.AverageHighwayMPG))
+                   .on("mouseover", function(event, d) {
+                       d3.select(this).attr("class", "bar-hover");
+                       tooltip.transition().duration(200).style("opacity", .9);
+                       tooltip.html(`Brand: ${d.Make}<br>Highway MPG: ${d.AverageHighwayMPG.toFixed(2)}`)
+                              .style("left", (event.pageX + 5) + "px")
+                              .style("top", (event.pageY - 28) + "px");
+                   })
+                   .on("mouseout", function() {
+                       d3.select(this).attr("class", "bar");
+                       tooltip.transition().duration(500).style("opacity", 0);
+                   });
+            }).catch(error => {
+                console.error("Error loading the CSV file:", error);
+            });
+        }
+
+        function navigateTo(url, button) {
+            document.querySelectorAll('.button-container button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+            window.location.href = url;
+        }
+
+        updateChart();
+    </script>
 </body>
 </html>
-

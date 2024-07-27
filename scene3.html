@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scene 3</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        svg {
+            border: 2px solid #ccc; 
+        }
+        .bar {
+            fill: steelblue;
+        }
+        .bar-hover {
+            fill: orange;
+        }
+        .axis-label {
+            font-size: 18px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 5px;
+            pointer-events: none;
+        }
+        .button-container {
+            margin-top: -10px; /* Move buttons up */
+        }
+        .button-container button {
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #28a745;  /* Green background */
+            border: none;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button-container button:hover {
+            background-color: #218838; /* Darker green on hover */
+        }
+        .button-container button.active {
+            background-color: #083412; /* Dark green for active button */
+        }
+        .annotation {
+            font-size: 14px;
+            position: absolute;
+            top: 100px;
+            left: 1050px;
+            width: 200px;
+            text-align: left;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>Engine Cylinders Comparison: Average Highway MPG</h1>
+        <div class="button-container">
+            <button onclick="navigateTo('index.html', this)">Scene 1</button>
+            <button onclick="navigateTo('scene2.html', this)">Scene 2</button>
+            <button onclick="navigateTo('scene3.html', this)">Scene 3</button>
+        </div>
+        <svg width="800" height="500"></svg>
+        <div class="annotation">
+            <p>This chart compares the average highway MPG based on the number of engine cylinders.</p>
+            <p>Generally, engines with more cylinders tend to consume more fuel, resulting in lower MPG.</p>
+            <p>The 0-cylinder engines are electric vehicles.</p>
+            <p>The 2-cylinder engine might be an outlier, possibly due to a special engine design or data anomaly.</p>
+            <p>4-cylinder engines are often found in smaller, more fuel-efficient vehicles.</p>
+            <p>6 and 8-cylinder engines are common in larger vehicles and high-performance cars.</p>
+        </div>
+    </div>
+    <script>
+        // Set margins and dimensions for the chart
+        const margin = {top: 20, right: 30, bottom: 80, left: 60},
+              width = 800 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom;
+
+        // Create SVG container
+        const svg = d3.select("svg")
+                      .append("g")
+                      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Create tooltip
+        const tooltip = d3.select("body").append("div")
+                          .attr("class", "tooltip")
+                          .style("opacity", 0);
+
+        // Load data
+        d3.csv("cars2017.csv").then(data => {
+            // Group data by EngineCylinders and calculate average Highway MPG
+            const cylinderData = d3.rollup(data,
+                v => ({avgHighwayMPG: d3.mean(v, d => +d.AverageHighwayMPG),
+                    count: v.length}),
+                d => +d.EngineCylinders);
+
+            const chartData = Array.from(cylinderData, ([EngineCylinders, {avgHighwayMPG, count}]) => ({
+                EngineCylinders,
+                avgHighwayMPG,
+                count
+            }));
+
+            // Sort data by EngineCylinders
+            chartData.sort((a, b) => a.EngineCylinders - b.EngineCylinders);
+
+            // Define scales
+            const x = d3.scaleBand()
+                         .domain(chartData.map(d => d.EngineCylinders))
+                         .range([0, width])
+                         .padding(0.2);
+
+            const y = d3.scaleLinear()
+                        .domain([0, d3.max(chartData, d => d.avgHighwayMPG)])
+                        .nice()
+                        .range([height, 0]);
+
+            // Draw axes
+            svg.append("g")
+               .attr("transform", `translate(0,${height})`)
+               .call(d3.axisBottom(x));
+
+            svg.append("g")
+               .call(d3.axisLeft(y));
+
+            // Add Y axis label
+            svg.append("text")
+               .attr("class", "axis-label")
+               .attr("transform", "rotate(-90)")
+               .attr("y", -margin.left + 10)
+               .attr("x", -height / 2)
+               .attr("dy", "1em")
+               .style("text-anchor", "middle")
+               .text("Average Highway MPG");
+
+            // Draw bars
+            svg.selectAll(".bar")
+               .data(chartData)
+               .enter().append("rect")
+               .attr("class", "bar")
+               .attr("x", d => x(d.EngineCylinders))
+               .attr("y", d => y(d.avgHighwayMPG))
+               .attr("width", x.bandwidth())
+               .attr("height", d => height - y(d.avgHighwayMPG))
+               .on("mouseover", function(event, d) {
+                   d3.select(this).attr("class", "bar-hover");
+                   tooltip.transition().duration(200).style("opacity", .9);
+                   tooltip.html(`Cylinders: ${d.EngineCylinders}<br>Highway MPG: ${d.avgHighwayMPG.toFixed(2)}<br>Count: ${d.count}`)
+                          .style("left", (event.pageX + 5) + "px")
+                          .style("top", (event.pageY - 28) + "px");
+               })
+               .on("mouseout", function() {
+                   d3.select(this).attr("class", "bar");
+                   tooltip.transition().duration(500).style("opacity", 0);
+               });
+        }).catch(error => {
+            console.error("Error loading the CSV file:", error);
+        });
+
+        function navigateTo(url, button) {
+            document.querySelectorAll('.button-container button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+            window.location.href = url;
+        }
+    </script>
+</body>
+</html>

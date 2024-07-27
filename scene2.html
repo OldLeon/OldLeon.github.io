@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scene 2</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        svg {
+            border: 2px solid #ccc; 
+        }
+        .axis-label {
+            font-size: 18px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 5px;
+            pointer-events: none;
+        }
+        .button-container {
+            margin-top: -10px; /* Move buttons up */
+        }
+        .button-container button {
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #28a745;  /* Green background */
+            border: none;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button-container button:hover {
+            background-color: #218838; /* Darker green on hover */
+        }
+        .button-container button.active {
+            background-color: #083412; /* Dark green for active button */
+        }
+        .annotation {
+            font-size: 14px;
+            position: absolute;
+            top: 100px; 
+            right: 20px; 
+            width: 200px; 
+            text-align: left; 
+        }
+        .legend {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>Fuel Type Comparison: Average Highway MPG</h1>
+        <div class="button-container">
+            <button onclick="navigateTo('index.html', this)">Scene 1</button>
+            <button onclick="navigateTo('scene2.html', this)">Scene 2</button>
+            <button onclick="navigateTo('scene3.html', this)">Scene 3</button>
+        </div>
+        <svg width="800" height="500"></svg>
+        <div class="annotation">
+            <p>This chart compares the average highway MPG by fuel type.</p>
+            <p>Gasoline: Commonly used, but has a higher carbon footprint.</p>
+            <p>Diesel: More efficient than gasoline but emits more nitrogen oxides.</p>
+            <p>Electricity: Most efficient and environmentally friendly option.</p>
+        </div>
+    </div>
+    <script>
+        // Set margins and dimensions for the chart
+        const margin = {top: 20, right: 150, bottom: 80, left: 60}, // Increased right margin
+              width = 800 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom;
+
+        // Create SVG container
+        const svg = d3.select("svg")
+                      .append("g")
+                      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Create tooltip
+        const tooltip = d3.select("body").append("div")
+                          .attr("class", "tooltip")
+                          .style("opacity", 0);
+
+        // Load data
+        d3.csv("cars2017.csv").then(data => {
+            // Calculate average MPG for each fuel type
+            const fuelData = d3.rollup(data,
+                v => d3.mean(v, d => +d.AverageHighwayMPG),
+                d => d.Fuel);
+
+            const chartData = Array.from(fuelData, ([Fuel, AverageHighwayMPG]) => ({ Fuel, AverageHighwayMPG }));
+
+            // Sort data by MPG
+            chartData.sort((a, b) => a.AverageHighwayMPG - b.AverageHighwayMPG);
+
+            // Define scales
+            const x = d3.scaleBand()
+                        .domain(chartData.map(d => d.Fuel))
+                        .range([0, width])
+                        .padding(0.2);
+
+            const y = d3.scaleLinear()
+                        .domain([0, d3.max(chartData, d => d.AverageHighwayMPG)])
+                        .range([height, 0]);
+
+            const color = d3.scaleOrdinal()
+                            .domain(chartData.map(d => d.Fuel))
+                            .range(["#FFD700", "gray", "pink"]); // Softer yellow for gasoline
+
+            // Draw axes
+            svg.append("g")
+               .attr("transform", `translate(0,${height})`)
+               .call(d3.axisBottom(x))
+               .selectAll("text")
+               .attr("transform", "rotate(45)")
+               .style("text-anchor", "start");
+
+            svg.append("g")
+               .call(d3.axisLeft(y));
+
+            // Add Y axis label
+            svg.append("text")
+               .attr("class", "axis-label")
+               .attr("transform", "rotate(-90)")
+               .attr("y", -margin.left + 10)
+               .attr("x", -height / 2)
+               .attr("dy", "1em")
+               .style("text-anchor", "middle")
+               .text("Average Highway MPG");
+
+            // Draw bars
+            svg.selectAll(".bar")
+               .data(chartData)
+               .enter().append("rect")
+               .attr("class", "bar")
+               .attr("x", d => x(d.Fuel))
+               .attr("y", d => y(d.AverageHighwayMPG))
+               .attr("width", x.bandwidth())
+               .attr("height", d => height - y(d.AverageHighwayMPG))
+               .attr("fill", d => color(d.Fuel))
+               .on("mouseover", function(event, d) {
+                   tooltip.transition().duration(200).style("opacity", .9);
+                   tooltip.html(`Fuel: ${d.Fuel}<br>MPG: ${d.AverageHighwayMPG}`)
+                          .style("left", (event.pageX + 5) + "px")
+                          .style("top", (event.pageY - 28) + "px");
+               })
+               .on("mouseout", function() {
+                   tooltip.transition().duration(500).style("opacity", 0);
+               });
+
+            // Add legend near Y axis
+            const legend = svg.selectAll(".legend")
+                              .data(color.domain())
+                              .enter().append("g")
+                              .attr("class", "legend")
+                              .attr("transform", (d, i) => `translate(0,${i * 20})`);
+
+            legend.append("rect")
+                  .attr("x", -margin.left + 70) // Move the legend to the right
+                  .attr("width", 18)
+                  .attr("height", 18)
+                  .style("fill", color);
+
+            legend.append("text")
+                  .attr("x", -margin.left + 90) // Adjust text position
+                  .attr("y", 9)
+                  .attr("dy", ".35em")
+                  .style("text-anchor", "start")
+                  .text(d => d);
+
+        }).catch(error => {
+            console.error("Error loading the CSV file:", error);
+        });
+
+        function navigateTo(url, button) {
+            document.querySelectorAll('.button-container button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            button.classList.add('active');
+            window.location.href = url;
+        }
+    </script>
+</body>
+</html>
